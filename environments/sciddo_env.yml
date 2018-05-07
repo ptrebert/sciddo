@@ -1,0 +1,12 @@
+name: sciddo
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - python=3.6.*
+  - numpy=1.13.*
+  - pandas=0.20.*
+  - scipy=0.19.*
+  - mpmath=0.19.*
+  - intervaltree=2.1.*
+  - pytest=3.2.*
