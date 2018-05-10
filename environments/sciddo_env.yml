@@ -9,4 +9,6 @@ dependencies:
   - scipy=0.19.*
   - mpmath=0.19.*
   - intervaltree=2.1.*
+  - pytables=3.4.*
+  - hdf5=1.8.*
   - pytest=3.2.*
