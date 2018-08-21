@@ -13,7 +13,8 @@ branches:
   - develop
 
 before_install:
-  - sudo apt-get install -y libhdf5-7 && locate hdf5
+  - sudo apt-get install -y libhdf5-7
+  - locate hdf5
 
 install:
   - python setup.py install
