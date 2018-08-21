@@ -25,7 +25,7 @@ script:
 
 env:
   global:
-    - HDF_DIR=/usr/lib:/var/lib
+    - HDF_DIR=/usr/lib/hdf5
 
 matrix:
   allow_failures:
