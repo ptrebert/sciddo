@@ -12,6 +12,8 @@ branches:
   only:
   - develop
 
+sudo: required
+
 before_install:
   - sudo apt-get install -y libhdf5-7
 
@@ -23,7 +25,7 @@ script:
 
 env:
   global:
-    - HDF_DIR=/usr/lib
+    - HDF_DIR=/usr/lib:/var/lib
 
 matrix:
   allow_failures:
