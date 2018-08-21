@@ -1,7 +1,5 @@
 # coding=utf-8
 
-import math as ma
-
 import numpy as np
 import pytest as pytest
 
@@ -37,11 +35,11 @@ def test_karlin_python():
     h_expect = 0.29394
 
     lambda_est = estimate_ka_lambda(score_values, score_probs)
-    assert ma.isclose(lambda_expect, lambda_est, abs_tol=0.001), \
+    assert np.isclose(lambda_expect, lambda_est, atol=0.001), \
         'Lambda estimate is off: est {} vs exp {}'.format(lambda_est, lambda_expect)
 
     h_est = compute_ka_h(lambda_est, score_values, score_probs)
-    assert ma.isclose(h_expect, h_est, abs_tol=0.001), \
+    assert np.isclose(h_expect, h_est, atol=0.001), \
         'H estimate is off: est {} vs exp {}'.format(h_est, h_expect)
     return True
 
@@ -78,13 +76,13 @@ def test_karlin_module():
                                                          max(score_values),
                                                          score_probs)
 
-    assert ma.isclose(lambda_expect, lambda_est, abs_tol=0.001), \
+    assert np.isclose(lambda_expect, lambda_est, atol=0.001), \
         'Lambda estimate is off: est {} vs exp {}'.format(lambda_est, lambda_expect)
 
-    assert ma.isclose(h_expect, h_est, abs_tol=0.001), \
+    assert np.isclose(h_expect, h_est, atol=0.001), \
         'H estimate is off: est {} vs exp {}'.format(h_est, h_expect)
 
-    assert ma.isclose(k_expect, k_est, abs_tol=0.001), \
+    assert np.isclose(k_expect, k_est, atol=0.001), \
         'K estimate is off: est {} vs exp {}'.format(k_est, k_expect)
 
     return True
