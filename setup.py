@@ -80,7 +80,7 @@ setup(
 
     author=pck_infos['__author__'],
     author_email=pck_infos['__email__'],
-    description="Score-based identification of differential chromatin regions",
+    description="Score-based identification of differential chromatin domains",
     license="GPLv3",
     url="https://github.com/ptrebert/sciddo"   # project home page, if any
 
