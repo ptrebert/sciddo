@@ -14,7 +14,6 @@ branches:
 
 before_install:
   - sudo apt-get install -y libhdf5-7
-  - locate hdf5
 
 install:
   - python setup.py install
@@ -24,7 +23,7 @@ script:
 
 env:
   global:
-    - HDF_DIR=/opt/local
+    - HDF_DIR=/usr/lib
 
 matrix:
   allow_failures:
