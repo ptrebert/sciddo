@@ -11,6 +11,7 @@ python:
 branches:
   only:
   - develop
+  - master
 
 sudo: required
 
@@ -23,11 +24,13 @@ install:
 script:
   - pytest
 
-env:
-  global:
-    - HDF_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial
-    - CPPFLAGS=-I/usr/include/hdf5/serial
-    - LDFLAGS=-L/usr/lib/x86_64-linux-gnu/hdf5/serial
+
+# Part of the attempt to fix the HDF linking problem - no luck
+#env:
+#  global:
+#    - HDF_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial
+#    - CPPFLAGS=-I/usr/include/hdf5/serial
+#    - LDFLAGS=-L/usr/lib/x86_64-linux-gnu/hdf5/serial
 
 matrix:
   allow_failures:

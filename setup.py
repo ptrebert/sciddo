@@ -1,7 +1,6 @@
 # coding=utf-8
 
 import os as os
-import sys as sys
 
 from setuptools import setup, find_packages, Extension
 
@@ -101,7 +100,7 @@ setup(
     # CPPFLAGS=-I/usr/include/hdf5/serial
     # LDFLAGS=-L/usr/lib/x86_64-linux-gnu/hdf5/serial
 
-    setup_requires=['pkgconfig', 'numpy'],
+    setup_requires=['numpy'],
     ext_modules=[karlin_module],
 
     author=pck_infos['__author__'],
