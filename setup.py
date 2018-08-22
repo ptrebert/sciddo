@@ -63,7 +63,7 @@ def locate_numpy_include_dirs():
     """
     try:
         import numpy.distutils.misc_util as nputil
-        inc_dirs = [nputil.get_numpy_include_dirs()]
+        inc_dirs = nputil.get_numpy_include_dirs()
     except ImportError:
         # current hack-around, probably breakpoint
         import site as site
@@ -72,6 +72,7 @@ def locate_numpy_include_dirs():
         for p in site_pck:
             if os.path.isdir(p):
                 inc_dirs.append(os.path.join(p, 'numpy', 'core', 'include'))
+        inc_dirs = inc_dirs[0]
     return inc_dirs
 
 
