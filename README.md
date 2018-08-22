@@ -6,6 +6,12 @@ in preparation
 ## Code maturity
 SCIDDO is currently in BETA status
 
+master branch:
+[![Build Status](https://travis-ci.org/ptrebert/sciddo.svg?branch=master)](https://travis-ci.org/ptrebert/sciddo)
+
+dev branch:
+[![Build Status](https://travis-ci.org/ptrebert/sciddo.svg?branch=develop)](https://travis-ci.org/ptrebert/sciddo)
+
 ## Setup
 SCIDDO supports only Linux environments (that is unlikely to change in the future) and is developed using Python3.6.
 Other Python3.x versions may or may not work, but are not officially supported.
