@@ -25,7 +25,7 @@ script:
 
 env:
   global:
-    #- HDF_DIR=/usr/lib/hdf5 - this seems not to help during PyTables setup
+    - HDF_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial
     - CPPFLAGS=-I/usr/include/hdf5/serial
     - LDFLAGS=-L/usr/lib/x86_64-linux-gnu/hdf5/serial
 
