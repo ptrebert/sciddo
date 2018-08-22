@@ -1,0 +1,40 @@
+language: python
+
+python:
+  - "3.2"
+  - "3.3"
+  - "3.4"
+  - "3.5"
+  - "3.6"
+  - "3.7"
+
+branches:
+  only:
+  - develop
+  - master
+
+sudo: required
+
+before_install:
+  - sudo apt-get install -y libhdf5-7
+
+install:
+  - python setup.py install
+
+script:
+  - pytest
+
+
+# Part of the attempt to fix the HDF linking problem - no luck
+#env:
+#  global:
+#    - HDF_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial
+#    - CPPFLAGS=-I/usr/include/hdf5/serial
+#    - LDFLAGS=-L/usr/lib/x86_64-linux-gnu/hdf5/serial
+
+matrix:
+  allow_failures:
+    - python: "3.2"
+    - python: "3.3"
+    - python: "3.4"
+    - python: "3.7"
