@@ -17,7 +17,7 @@ Otherwise, install the HDF5 library (tested with version 1.8.18) as appropriate 
 and the necessary Python dependencies from the `requirements.txt` file:
 
 ```bash
-sudo apt-get install libhdf5\
+sudo apt-get install libhdf5
 sudo pip install -r requirements.txt
 ```
 
@@ -50,9 +50,9 @@ sciddo.py [GLOBAL_PARAMETERS] <SUBCOMMAND> [MODULE_PARAMETERS]
 The global parameters are:
 
 ```bash
---workers: number of CPUs to use (no sanity checks!)\
---debug: print debug messages to stderr; otherwise, SCIDDO operates silently\
---config-dump: folder to dump run configuration (JSON); defaults to current working directory\
+--workers: number of CPUs to use (no sanity checks!)
+--debug: print debug messages to stderr; otherwise, SCIDDO operates silently
+--config-dump: folder to dump run configuration (JSON); defaults to current working directory
 --no-dump: do not dump run configuration
 ```
 
