@@ -4,7 +4,8 @@ import pandas as pd
 import numpy as np
 
 from scidlib.statistics import jensen_shannon_divergence as jsd
-from scidlib.statistics import compute_score_probabilities
+from scidlib.statistics import compute_score_probabilities, compute_scan_parameters
+from scidlib.cmd_scan import compute_adaptive_group_size
 
 
 def test_js_divergence():
@@ -67,5 +68,81 @@ def test_compute_score_probabilities():
         'Computed score range wrong: {} vs {}'.format(expected_range, computed_range)
     assert np.allclose(expected_probs, computed_probs, atol=1e-3), \
         'Computed score probabilities wrong: {} vs {}'.format(expected_probs, computed_probs)
+
+    return True
+
+
+def test_adaptive_length_norm_factor():
+    """
+    :return:
+    """
+    g1 = [['A', 'B', 'B'], ['A', 'B', 'C'], ['A', 'B', 'A']]
+    g1 = [pd.Series(i) for i in g1]
+    g2 = [['A', 'B', 'C'], ['A', 'B', 'C']]
+    g2 = [pd.Series(i) for i in g2]
+
+    g1_size = compute_adaptive_group_size(g1, len(g1[0]))
+    g2_size = compute_adaptive_group_size(g2, len(g2[0]))
+
+    assert g1_size == 5, 'Group 1 size is wrong: {} vs expected {}'.format(g1_size, 5)
+    assert g2_size == 3, 'Group 2 size is wrong: {} vs expected {}'.format(g2_size, 3)
+
+    chroms = pd.DataFrame([[3, 1]],
+                          index=['chrT'],
+                          columns=['bins', 'binsize'])
+
+    params = pd.DataFrame([[0.5, 0.75, 0.8]],
+                          index=['chrT'],
+                          columns=['ka_k', 'ka_lambda', 'ka_h'])
+
+    group1 = {'total': 3, 'singletons': 0, 'rep_groups': 1}
+    group2 = {'total': 2, 'singletons': 0, 'rep_groups': 1}
+    baselength = {'chrT': 3}
+    grouplength = pd.DataFrame([[g1_size, g2_size]],
+                               index=['chrT'],
+                               columns=['group1', 'group2'])
+
+    res = compute_scan_parameters(chroms, params, group1, group2, baselength, grouplength, None)
+
+    ln = res['chrT']['len_norm']
+    assert ln == 'full_adaptive', 'Unexpected length normalization factor computed: {}'.format(ln)
+
+    g1_len = res['chrT']['eff_grp1_len']
+    assert g1_len == 2, 'Unexpected group 1 length: {} vs expected {}'.format(g1_len, 2)
+    g2_len = res['chrT']['eff_grp2_len']
+    assert g2_len == 3, 'Unexpected group 2 length: {} vs expected {}'.format(g2_len, 3)
+
+    return True
+
+
+def test_linear_length_norm_factor():
+    """
+    :return:
+    """
+    g1 = [['A', 'B', 'B'], ['A', 'B', 'C'], ['A', 'B', 'A']]
+    g2 = [['A', 'B', 'C'], ['A', 'B', 'C']]
+
+    chroms = pd.DataFrame([[3, 1]],
+                          index=['chrT'],
+                          columns=['bins', 'binsize'])
+
+    params = pd.DataFrame([[0.5, 0.75, 0.8]],
+                          index=['chrT'],
+                          columns=['ka_k', 'ka_lambda', 'ka_h'])
+
+    group1 = {'total': 3, 'singletons': 0, 'rep_groups': 1}
+    group2 = {'total': 2, 'singletons': 0, 'rep_groups': 1}
+    baselength = {'chrT': 3}
+    grouplength = 'linear'
+
+    res = compute_scan_parameters(chroms, params, group1, group2, baselength, grouplength, None)
+
+    ln = res['chrT']['len_norm']
+    assert ln == 'full_linear', 'Unexpected length normalization factor computed: {}'.format(ln)
+
+    g1_len = res['chrT']['eff_grp1_len']
+    assert g1_len == 18, 'Unexpected group 1 length: {} vs expected {}'.format(g1_len, 18)
+    g2_len = res['chrT']['eff_grp2_len']
+    assert g2_len == 0, 'Unexpected group 2 length: {} vs expected {}'.format(g2_len, 0)
 
     return True

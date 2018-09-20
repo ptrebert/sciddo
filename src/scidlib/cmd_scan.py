@@ -49,17 +49,21 @@ def add_scan_cmd_parser(subparsers):
                      help='Count the length of the sequence per sample either in "full"'
                           ' (= total number of bins) or just as "variable" bins'
                           ' (= bins that differ at least once across the entire'
-                          ' dataset).'
+                          ' dataset). Note that the option "variable" should be'
+                          ' considered experimental.'
                           ' DEFAULT: full')
     grp.add_argument('--adjust-group-length', '-agl', type=str, choices=['linear', 'adaptive'],
                      dest='grouplength', default='adaptive',
                      help='When comparing groups of samples, adjust the combined sequence'
                           ' length per group either in a "linear" fashion (= add complete'
-                          ' length for each additional sample depending on the option set'
-                          ' for "--count-length") or in an "adaptive" fashion (= the first'
-                          ' sample is counted according the option set for "--count-length",'
+                          ' chromosome length for each additional comparison'
+                          ' depending on the option set for "--count-length")'
+                          ' or in an "adaptive" fashion (= the first sample is counted'
+                          ' according the option set for "--count-length",'
                           ' the length of all additional samples is counted as number of bins'
                           ' that differ between this sample and all other samples in the group.'
+                          ' Note that the option "adaptive" should only be chosen for homogeneous'
+                          ' groups of samples such as biological replicates.'
                           ' DEFAULT: adaptive')
     grp.add_argument('--run-baseline', '-rbl', type=str, choices=['replicate'],
                      dest='baseline', default='',
@@ -357,27 +361,49 @@ def compute_ka_statistics(segment_scores, threshold, ka_params):
     return segment_scores
 
 
-def compute_adaptive_group_size(param):
+def get_adaptive_group_size(param):
     """
     :param param:
     :return:
     """
     fpath, chrom, baselen, group, samples = param
 
-    group_size = 0
-    group_states = None
+    # group_size = 0
+    # group_states = None
     with pd.HDFStore(fpath, 'r') as hdf:
-        for s in samples:
-            data_path = os.path.join('state', s, chrom)
-            data = hdf[data_path]
-            if group_size == 0:
-                group_size += baselen
-                group_states = pd.DataFrame([data])
-            else:
-                diff_bin = (data != group_states).any(axis=0).sum()
-                group_states = group_states.append(data, ignore_index=True)
-                group_size += diff_bin
+        state_data = [hdf[os.path.join('state', s, chrom)] for s in samples]
+        group_size = compute_adaptive_group_size(state_data, baselen)
+        # for s in samples:
+        #     data_path = os.path.join('state', s, chrom)
+        #     data = hdf[data_path]
+        #     if group_size == 0:
+        #         group_size += baselen
+        #         group_states = pd.DataFrame([data])
+        #     else:
+        #         diff_bin = (data != group_states).any(axis=0).sum()
+        #         group_states = group_states.append(data, ignore_index=True)
+        #         group_size += diff_bin
     return chrom, group, group_size
+
+
+def compute_adaptive_group_size(samples, base_length):
+    """
+    :param samples:
+    :param base_length:
+    :return:
+    """
+    # Note to self: could be implemented with pandas.DataFrame.nunique,
+    # but for some reason, that is super slow (~4x slower)
+    group_size = 0
+    for s in samples:
+        if group_size == 0:
+            group_size += base_length
+            group_states = pd.DataFrame([s])
+        else:
+            diff_bin = (s != group_states).any(axis=0).sum()
+            group_states = group_states.append(s, ignore_index=True)
+            group_size += diff_bin
+    return group_size
 
 
 def collect_adaptive_group_size(args, base_length, group1, group2):
@@ -398,7 +424,7 @@ def collect_adaptive_group_size(args, base_length, group1, group2):
         params.append((args.dataset, c, base_length[c], 'group2', group2['samples']))
 
     with mp.Pool(args.workers) as pool:
-        resit = pool.imap_unordered(compute_adaptive_group_size, params)
+        resit = pool.imap_unordered(get_adaptive_group_size, params)
         for chrom, group, groupsize in resit:
             groupsizes.loc[chrom, group] = groupsize
 
