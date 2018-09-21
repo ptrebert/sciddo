@@ -110,6 +110,10 @@ def normalize_scores(score, ka_lambda, ka_k, units, m, n=1):
     :return:
     """
     logfun = _get_log_function(units)
+    # for linear length normalization, n or m could
+    # be set to zero
+    m = max(m, 1)
+    n = max(n, 1)
     log_const = logfun(ka_k) + logfun(n) + logfun(m)
     if hasattr(score, '__iter__'):
         if isinstance(score, np.ndarray):
@@ -206,9 +210,11 @@ def compute_scan_parameters(chromosomes, scoring_params, group1, group2,
             if isinstance(grouplengths, str) and grouplengths == 'linear':
                 # total number of samples in group
                 sm = group1['total']
-                m = base_length * sm
                 sn = group2['total']
-                n = base_length * sn
+                comp = sn * sm
+                eff_grp1 = comp * base_length
+                eff_grp2 = 0
+                exp_hsp = -1
                 suffix = 'linear'
             elif isinstance(grouplengths, pd.DataFrame):
                 # means: group size is set to adaptive
@@ -219,11 +225,16 @@ def compute_scan_parameters(chromosomes, scoring_params, group1, group2,
                 sm = group1['singletons'] + group1['rep_groups']
                 n = grouplengths.at[chrom, 'group2']
                 sn = group2['singletons'] + group2['rep_groups']
+                eff_grp1 = m - base_length
+                eff_grp2 = n
+                exp_hsp = -1
                 suffix = 'adaptive'
             else:
                 raise ValueError('Unexpected type of argument groupsize: {}'.format(type(grouplengths)))
-            exp_hsp, eff_grp1, eff_grp2 = compute_expected_hsp_length(unit, ka_k, ka_h,
-                                                                      m, sm, n, sn)
+            # effective sequence length computation is removed - theory seems
+            # only to be developed for alignment case
+            # exp_hsp, eff_grp1, eff_grp2 = compute_expected_hsp_length(unit, ka_k, ka_h,
+            #                                                           m, sm, n, sn)
         else:
             exp_hsp, eff_grp1, eff_grp2 = 0, 0, 0
 
@@ -245,39 +256,40 @@ def compute_scan_parameters(chromosomes, scoring_params, group1, group2,
 def compute_expect(score, m, n, ka_k=None, ka_lambda=None, is_nat=True):
     """
     :param score:
-    :param m: effective length of the query sequence
-    :param n: effective length of the database
+    :param m: sequence length of group 1
+    :param n: sequence length of group 2
     :param ka_k:
     :param ka_lambda:
     :param is_nat: scores are nat scores, not raw scores
     :return:
     """
     np.seterr(all='raise')
+    L = m + n
     if hasattr(score, '__iter__'):
         if isinstance(score, np.ndarray):
             # can use vectorized operations
             if is_nat:
-                res = np.array(np.exp(-1 * score) * m * n, dtype=score.dtype)
+                res = np.array(np.exp(-1 * score) * L, dtype=score.dtype)
             else:
-                res = np.array(ka_k * m * n * np.exp(-1 * ka_lambda * score), dtype=score.dtype)
+                res = np.array(ka_k * L * np.exp(-1 * ka_lambda * score), dtype=score.dtype)
         elif isinstance(score, pd.Series):
             if is_nat:
-                res = pd.Series(np.exp(-1 * score) * m * n, dtype=score.dtype)
+                res = pd.Series(np.exp(-1 * score) * L, dtype=score.dtype)
             else:
-                res = pd.Series(ka_k * m * n * np.exp(-1 * ka_lambda * score), dtype=score.dtype)
+                res = pd.Series(ka_k * L * np.exp(-1 * ka_lambda * score), dtype=score.dtype)
         else:
             # "compatibility" option
             # could be Python list or something else...
             if is_nat:
-                res = list(map(lambda s: m * n * np.exp(-1 * s), score))
+                res = list(map(lambda s: L * np.exp(-1 * s), score))
             else:
-                res = list(map(lambda s: ka_k * m * n * np.exp(-1 * ka_lambda * s), score))
+                res = list(map(lambda s: ka_k * L * np.exp(-1 * ka_lambda * s), score))
     else:
         # for single score value
         if is_nat:
-            res = np.exp(-1 * score) * m * n
+            res = np.exp(-1 * score) * L
         else:
-            res = ka_k * m * n * np.exp(-1 * ka_lambda * score)
+            res = ka_k * L * np.exp(-1 * ka_lambda * score)
     return res
 
 

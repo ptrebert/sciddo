@@ -3,7 +3,7 @@
 # package info
 __author__ = 'Peter Ebert'
 __email__ = 'pebert@mpi-inf.mpg.de'
-__version__ = '0.6.0'
+__version__ = '0.7.0'
 
 # some formatting config
 LOG_FORMAT = '%(asctime)s - %(levelname)s: %(message)s'
