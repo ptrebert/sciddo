@@ -1,4 +1,4 @@
-# SCIDDO: Sciddo-based identification of differential chromatin domains
+# SCIDDO: Score-based identification of differential chromatin domains
 
 ## Publication
 in preparation

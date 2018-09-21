@@ -367,7 +367,6 @@ def get_adaptive_group_size(param):
     :return:
     """
     fpath, chrom, baselen, group, samples = param
-
     # group_size = 0
     # group_states = None
     with pd.HDFStore(fpath, 'r') as hdf:
@@ -405,7 +404,7 @@ def compute_adaptive_group_size(samples, base_length):
             group_size += diff_bin
     return group_size
 
-
+  
 def collect_adaptive_group_size(args, base_length, group1, group2):
     """
     :param args:

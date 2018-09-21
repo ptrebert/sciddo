@@ -146,3 +146,4 @@ def test_linear_length_norm_factor():
     assert g2_len == 0, 'Unexpected group 2 length: {} vs expected {}'.format(g2_len, 0)
 
     return True
+  
