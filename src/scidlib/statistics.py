@@ -118,9 +118,9 @@ def normalize_scores(score, ka_lambda, ka_k, units, m, n=1):
     if hasattr(score, '__iter__'):
         if isinstance(score, np.ndarray):
             # can use vectorized operations
-            res = np.array(ka_lambda * score - log_const, dtype=score.dtype)
+            res = np.array(ka_lambda * score - log_const, dtype=np.float64)
         elif isinstance(score, pd.Series):
-            res = pd.Series(ka_lambda * score - log_const, dtype=score.dtype)
+            res = pd.Series(ka_lambda * score - log_const, dtype=np.float64)
         else:
             # "compatibility" option
             # could be Python list or something else...
