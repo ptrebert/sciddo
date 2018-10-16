@@ -1,7 +1,5 @@
 # coding=utf-8
 
-import sys as sys
-
 import os as os
 import collections as col
 import itertools as itt
@@ -65,7 +63,7 @@ def add_scan_cmd_parser(subparsers):
                           ' Note that the option "adaptive" should only be chosen for homogeneous'
                           ' groups of samples such as biological replicates.'
                           ' DEFAULT: adaptive')
-    grp.add_argument('--run-baseline', '-rbl', type=str, choices=['replicate'],
+    grp.add_argument('--run-baseline', '-rbl', type=str, choices=['replicate', 'random'],
                      dest='baseline', default='',
                      help='Run baseline comparisons applying one of the following'
                           ' strategies:'
@@ -74,7 +72,17 @@ def add_scan_cmd_parser(subparsers):
                           ' This baseline run uses standard "full" and "variable"'
                           ' length counting plus the "pairwise variable" (set length'
                           ' of both sequences to the number of bins different only'
-                          ' between the two replicates being compared).')
+                          ' between the two replicates being compared).'
+                          ''
+                          '"random": randomize state segmentation maps before'
+                          ' scanning for maximal scoring segments. Note that this kind'
+                          ' of scan run continues until a specified number of segments'
+                          ' has been found (which might take some time). See parameter'
+                          ' "--num-random" below')
+    grp.add_argument('--num-random', '-rand', type=int, dest='numrandom', default=1000,
+                     help='Specify number of maximal scoring segments to be identified'
+                          ' before the baseline run with strategy "random" is stopped.'
+                          ' Default: 1000')
     grp.add_argument('--compute-raw-stats', '-rs', type=int, default=-1, dest='rawstats',
                      help='Compute statistics for the top N high scoring segment'
                           ' pairs (unmerged segments). A value of -1 disables'
@@ -236,6 +244,71 @@ def find_state_hsp(params):
             ka_params['eff_grp1_len'] = eff_grp1
             ka_params['eff_grp2_len'] = eff_grp2
             ka_params['seq_base_len'] = diff_bins
+
+    # if there was a raw score <= 0, this should point
+    # to something being wrong in the Ruzzo & Tompa implementation
+    assert segments['raw_score'].min() > 0, 'Minimal raw HSP score is <= 0'
+
+    segments = add_segment_coordinates(segments, ka_params['binsize'])
+
+    segments['nat_score'] = normalize_scores(segments['raw_score'],
+                                             ka_params['ka_lambda'],
+                                             ka_params['ka_k'],
+                                             'e', m=1, n=1)
+    # to make scores comparable across chromosomes, need to compute
+    # the length corrected version (which is otherwise done as part
+    # of the Expect computation) - this is only relevant for cases
+    # where the Expect is not used as "quality measure"
+    segments['nat_score_lnorm'] = normalize_scores(segments['raw_score'],
+                                                   ka_params['ka_lambda'],
+                                                   ka_params['ka_k'], units='e',
+                                                   m=ka_params['eff_grp1_len'],
+                                                   n=ka_params['eff_grp2_len'])
+    segments = compute_ka_statistics(segments, rawstats, ka_params)
+    segments.sort_values(by='segment_expect', ascending=False,
+                         axis=0, inplace=True)
+    segments.reset_index(drop=True, inplace=True)
+    segments['sample1'] = s1
+    segments['sample2'] = s2
+    segments['len_norm'] = ka_params['len_norm']
+    dtypes = {'start_bin': np.int32, 'end_bin': np.int32, 'num_bins': np.int32,
+              'start_bp': np.int32, 'end_bp': np.int32,
+              'raw_score': np.int32, 'nat_score': np.float64, 'nat_score_lnorm': np.float64,
+              'segment_pv': np.float64, 'segment_expect': np.float64,
+              'sample1': str, 'sample2': str, 'len_norm': str}
+    segments = segments.astype(dtypes)
+    return chrom, segments, scoring_name
+
+
+def find_random_hsp(params):
+    """
+    :param params:
+    :return:
+    """
+    # args.dataset, s1, s2, c, s, args.rawstats, ka_scan_params, rep
+    fpath, s1, s2, chrom, scoring_name, rawstats, ka_params, is_rep = params
+    segments = None
+    with pd.HDFStore(fpath, 'r') as hdf:
+        s1_states = hdf[os.path.join('state', s1, chrom)].values
+        s2_states = hdf[os.path.join('state', s2, chrom)].values
+        scoring = hdf[os.path.join(ROOT_SCORE, scoring_name, 'matrix')]
+        for _ in range(10):
+            scores = scoring.lookup(rng.permutation(s1_states),
+                                    rng.permutation(s2_states))
+
+            segments = pd.DataFrame.from_records(get_all_max_scoring_subseq(scores),
+                                                 columns=['raw_score', 'start_bin', 'end_bin'])
+            if segments.empty:
+                continue
+            else:
+                segments = segments.loc[segments['raw_score'] == segments['raw_score'].max(), :].copy()
+                if segments.shape[0] > 1:
+                    # randomly pick just one entry
+                    segments = segments.iloc[[0], :].copy()
+                break
+    # no HSP identified
+    if segments.empty or segments is None:
+        return chrom, None, scoring_name
 
     # if there was a raw score <= 0, this should point
     # to something being wrong in the Ruzzo & Tompa implementation
@@ -512,6 +585,8 @@ def build_sample_pairings(samples1, samples2, replicate_pairs, baseline=''):
         is_rep = (s1, s2) in replicate_pairs or (s2, s1) in replicate_pairs
         if baseline == 'replicate' and not is_rep:
             continue
+        if baseline == 'random' and is_rep:
+            continue
         if is_rep:
             group1_rep.add(s1)
             group2_rep.add(s2)
@@ -531,7 +606,7 @@ def build_sample_pairings(samples1, samples2, replicate_pairs, baseline=''):
     assert sng_group2 + rep_groups2 <= len(samples2), \
         'Group 2 composition wrong: {} / {} / {}'.format(sng_group2, rep_groups2, len(samples2))
 
-    if baseline == 'replicate':
+    if baseline == 'replicate' or baseline == 'random':
         sng_per_group = {'group1': 1, 'group2': 1}
         rep_groups = {'group1': 0, 'group2': 0}
     else:
@@ -598,6 +673,15 @@ def determine_sample_pairings(args, logger):
             group2['total'] = 1
             group1['samples'] = tuple(sorted(rep_samples))
             group2['samples'] = tuple(sorted(rep_samples))
+        elif args.baseline == 'random':
+            pairs, singletons, rep_groups = build_sample_pairings(stored_samples, stored_samples,
+                                                                  rep_pairs, args.baseline)
+            # random baseline run assumes 1-vs-1 setting
+            # group size is always 1
+            group1['total'] = 1
+            group2['total'] = 1
+            group1['samples'] = tuple(sorted([p[0] for p in pairs]))
+            group2['samples'] = tuple(sorted([p[1] for p in pairs]))
         else:
             raise ValueError('Unexpected value for baseline run: {}'.format(args.baseline))
     elif args.samples or not args.selectgroups:
@@ -698,6 +782,29 @@ def prepare_baseline_params(args, pairs, group1, group2):
                 for s in args.scoring:
                     for l in ['full', 'variable', 'pairwise']:
                         scan_jobs.append((args.dataset, s1, s2, c, s, args.rawstats, ka_scan_params[s][l][c], is_rep))
+    elif args.baseline == 'random':
+        with pd.HDFStore(args.dataset, 'r') as hdf:
+            md_chrom = hdf[PATH_MD_CHROM]
+            chromosomes = md_chrom.index.tolist()
+            blen_full = {row.Index: int(row.bins) for row in md_chrom.itertuples()}
+            ka_scan_params = col.defaultdict(dict)
+            for s in args.scoring:
+                param_scoring = hdf[os.path.join(ROOT_SCORE, s, 'parameters')]
+                ka_scoring_params = compute_scan_parameters(md_chrom, param_scoring,
+                                                            group1, group2,
+                                                            blen_full, 'linear', 'e')
+                tmp = pd.DataFrame(list(ka_scoring_params.values()))
+                tmp['scoring'] = s
+                if md_params is None:
+                    md_params = tmp.copy()
+                else:
+                    md_params = pd.concat([md_params, tmp], axis=0, ignore_index=False)
+                ka_scan_params[s]['full'] = ka_scoring_params
+        scan_jobs = []
+        for s1, s2, is_rep in pairs:
+            for c in chromosomes:
+                for s in args.scoring:
+                    scan_jobs.append((args.dataset, s1, s2, c, s, args.rawstats, ka_scan_params[s]['full'][c], is_rep))
     else:
         raise ValueError('Undefined baseline run: {}'.format(args.baseline))
 
@@ -762,8 +869,10 @@ def _run_cmd_scan(args, logger):
     """
     logger.debug('Determine sample pairings')
     pairs, group1, group2, md_comp = determine_sample_pairings(args, logger)
-
     if args.baseline:
+        if args.baseline == 'random':
+            assert len(args.scoring) == 1, 'Multiple scorings not supported for baseline run' \
+                                           ' with strategy "random": {}'.format(args.scoring)
         logger.debug('Preparing parameters for baseline run "{}"'.format(args.baseline))
         scan_jobs, md_params, ka_params, binsize = prepare_baseline_params(args, pairs, group1, group2)
         logger.debug('Create parameter list of size {} for baseline run'.format(len(scan_jobs)))
@@ -778,15 +887,29 @@ def _run_cmd_scan(args, logger):
     for s in args.scoring:
         scan_results[s] = col.defaultdict(list)
 
-    i = 0
-    total = len(scan_jobs)
-    with mp.Pool(args.workers) as pool:
-        logger.debug('Start processing...')
-        resit = pool.imap_unordered(find_state_hsp, scan_jobs)
-        for chrom, segments, scoring in resit:
-            i += 1
-            logger.debug('Received results for chromosome {} ({}/{})'.format(chrom, i, total))
-            scan_results[scoring][chrom].append(segments)
+    if args.baseline == 'random':
+        num_rand_hsp = 0
+        with mp.Pool(args.workers) as pool:
+            logger.debug('Start randomized search...')
+            while num_rand_hsp < args.numrandom:
+                resit = pool.imap_unordered(find_random_hsp, scan_jobs)
+                for chrom, segments, scoring in resit:
+                    if segments is not None:
+                        num_rand_hsp += segments.shape[0]
+                        scan_results[scoring][chrom].append(segments)
+                    else:
+                        print('Empty return')
+                logger.debug('Round completed - identified {} random HSPs'.format(num_rand_hsp))
+    else:
+        i = 0
+        total = len(scan_jobs)
+        with mp.Pool(args.workers) as pool:
+            logger.debug('Start processing...')
+            resit = pool.imap_unordered(find_state_hsp, scan_jobs)
+            for chrom, segments, scoring in resit:
+                i += 1
+                logger.debug('Received results for chromosome {} ({}/{})'.format(chrom, i, total))
+                scan_results[scoring][chrom].append(segments)
 
     logger.debug('Scanning finished, storing results...')
     os.makedirs(os.path.dirname(os.path.abspath(args.runout)), exist_ok=True)
