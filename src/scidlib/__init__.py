@@ -3,7 +3,11 @@
 # package info
 __author__ = 'Peter Ebert'
 __email__ = 'pebert@mpi-inf.mpg.de'
+<<<<<<< HEAD
+__version__ = '0.8.0'
+=======
 __version__ = '0.7.1'
+>>>>>>> origin/develop
 
 
 # some formatting config

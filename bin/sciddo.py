@@ -130,6 +130,13 @@ def add_sub_parsers(main_parser):
 
 
 if __name__ == '__main__':
+    # 2018-12-04: Pavlo reported unexpected behavior with a new installation of SCIDDO
+    # >>> AttributeError: module '__main__' has no attribute '__spec__'
+    # Still not entirely sure why this showed up out of the blue,
+    # suggested workaround as detailed here:
+    # https://stackoverflow.com/questions/27793142/python3-why-does-spec-work
+    # https://stackoverflow.com/questions/45720153/python-multiprocessing-error-attributeerror-module-main-has-no-attribute
+    __spec__ = None
     exc = 0
     start_time = int(ti.time())
     start_date = ti.ctime()
