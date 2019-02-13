@@ -45,7 +45,17 @@ def collect_files(toplevel, recursive=False, pattern='*'):
         for root, dirs, files in os.walk(toplevel, followlinks=False):
             if files:
                 all_files.extend([os.path.join(root, fn) for fn in files])
+    found_files = len(all_files) > 0
     filtered_files = fnm.filter(all_files, pattern)
+    retained_files = len(filtered_files) > 0
+    if found_files and not retained_files:
+        raise ValueError('Found input file(s): {} - but filter expression "{}" did not retain any;' \
+                         ' do your files actually have the standard file names as generated' \
+                         ' by the specified chromatin state segmentation model?'.format(all_files, pattern))
+    elif not found_files:
+        raise ValueError('No input files detected underneath toplevel path {}'.format(toplevel))
+    else:
+        pass
     return sorted(filtered_files)
 
 
