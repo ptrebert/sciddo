@@ -175,6 +175,10 @@ def read_chromhmm_model_emissions(fpath):
         for line in model:
             if line and line.startswith('emissionprobs'):
                 read_buffer.append(line.strip().split()[1:])
+    if not read_buffer:
+        raise ValueError('Could not parse state emission probabilities from the ChromHMM' \
+                         ' model file "{}" - are you sure you supplied a standard ChromHMM' \
+                         ' model file containing state transitions, emissions etc.?'.format(fpath))
     em_probs = pd.DataFrame(read_buffer, columns=['hidden', 'observed', 'label', 'use', 'prob'])
     em_probs = em_probs.astype({'hidden': np.int8, 'observed': np.int8, 'label': str,
                                 'use': np.int8, 'prob': np.float64})

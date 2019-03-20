@@ -355,8 +355,9 @@ def _run_cmd_convert(args, logger):
     logger.debug('Creating output folder')
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
     process_files = get_file_processor(args.segformat)
-    logger.debug('Start processing files')
     total_jobs = len(input_params)
+    logger.debug('Start processing files - {} jobs in total'.format(total_jobs))
+    assert total_jobs > 0, 'No processing jobs created - something went wrong'
     bg_state = col.Counter()
     with pd.HDFStore(args.output, mode='w', complevel=9, complib='blosc') as hdf:
         state_labels = dict()
