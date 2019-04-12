@@ -124,7 +124,7 @@ def add_score_cmd_parser(subparsers):
                           ' occurrence can be penalized (receives minimum score for all\n'
                           ' possible state pairings) to reflect the fact that the lack of\n'
                           ' a signal may simply be due to technical artifacts.\n\n'
-                          ' Default: penalized')
+                          ' DEFAULT: penalized')
     grp.add_argument('--replace', '-rep', action='store_true', default=False, dest='replace',
                      help='If the user specifies a scoring and its name already exists,\n'
                           'simply overwrite the existing scoring; otherwise,\n'
