@@ -234,6 +234,9 @@ def compute_pair_state_transitions(args, logger):
                     pass
             sample_pairs = get_pairs(md_design)
             comp = os.path.split(path)[-1]
+            if len(sample_pairs) == 0:
+                logger.warning('Identified 0 sample pairs for comparison {} - is that correct? Skipping to next...'.format(comp))
+                continue
             logger.debug('Identified {} sample pairs for comparison: {}'.format(len(sample_pairs), comp))
             # append individual chromosomes and path to data file
             # to create final list of parameters
