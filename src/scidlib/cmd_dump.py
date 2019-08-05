@@ -38,13 +38,14 @@ def add_dump_cmd_parser(subparsers):
 
     grp = parser_dump.add_argument_group('General parameters')
     grp.add_argument('--data-type', '-type', type=str, required=True, dest='datatype',
-                     choices=['metadata', 'states', 'segments', 'raw', 'scores', 'dynamics'])
+                     choices=['metadata', 'states', 'segments', 'raw',
+                              'scores', 'dynamics', 'transitions'])
     grp.add_argument('--scoring', '-sc', type=str, default='auto', dest='scoring',
                      help='Specify scoring name. Necessary for data types'
-                          ' "segments", "scores" and "dynamics". The default value'
-                          ' "auto" can be used if - and only if - there is exactly'
-                          ' one scoring included in the dataset, which can be selected'
-                          ' automatically.'
+                          ' "segments", "scores", "dynamics" and "transitions".'
+                          ' The default value "auto" can be used if - and only if -'
+                          ' there is exactly one scoring included in the dataset,'
+                          ' which can be selected automatically.'
                           ' DEFAULT: auto')
     grp.add_argument('--threshold', '-t', type=float, default=1., dest='threshold',
                      help='Specify upper threshold on Expect value of high scoring segments.'
@@ -134,16 +135,12 @@ def add_dump_cmd_parser(subparsers):
                           ' the genomic coordinates of the state transitions. This can be helpful'
                           ' in case of long segments that span multiple smaller regions where the'
                           ' specified state transitions are observed. Default: False')
-    #
-    # grp = parser_dump.add_argument_group('Dump transition count matrix')
-    # grp.add_argument('--hsp-transitions', '-hspt', action='store_true', default=False, dest='hsptransitions',
-    #                  help='Dump a text file containing a count matrix that lists all state transitions'
-    #                       ' observed in the HSPs. This requires a dataset, an HSP file and the respective'
-    #                       ' data paths to be set. Default: False')
-    # grp.add_argument('--add-state-labels', '-lab', action='store_true', default=False, dest='addstatelabels',
-    #                  help='Add state labels to the output matrix (rows and columns). Please note'
-    #                       ' that this requires the respective annotation to be part of the dataset'
-    #                       ' (usually added during the "convert" command). Default: False')
+
+    grp = parser_dump.add_argument_group('Dump transition count matrix')
+    grp.add_argument('--add-state-labels', '-lab', action='store_true', default=False, dest='addstatelabels',
+                     help='Add state labels to the output matrix (rows and columns). Please note'
+                          ' that this requires the respective annotation to be part of the dataset'
+                          ' (usually added during the "convert" command). Default: False')
 
     parser_dump.set_defaults(execute=_run_cmd_dump)
     return subparsers
@@ -337,6 +334,100 @@ def filter_by_chromatin_dynamics(args, logger):
     dump_bed_data(switches, args.output, 'w', header=True)
 
     return 0
+
+
+def count_state_transitions_per_comparison(params):
+    """
+    :param params:
+    :return:
+    """
+    states1, states2, sample1, sample2, segments, binsize = load_filter_data(params)
+    chrom, threshold = params[5:]
+
+    original_length = states1.size
+
+    try:
+        hsp_cov_idx, _ = prepare_indices(states1, segments, threshold)
+    except ValueError:
+        # can be triggered if, for a given E-value thresholds,
+        # no DCDs were detected on the respective chromosome
+        return sample1, sample2, chrom + ' (NO DCDs!)', col.Counter()
+    hsp_cov_idx = np.array(hsp_cov_idx.values, dtype=np.bool)
+
+    states1 = states1.values[hsp_cov_idx]
+    states2 = states2.values[hsp_cov_idx]
+
+    subset_length = states1.size
+
+    assert subset_length < original_length, \
+        'Subsetting chromatin state vectors failed: {} vs {}'.format(original_length, subset_length)
+
+    state_pair_counts = col.Counter(zip(states1, states2))
+
+    return sample1, sample2, chrom, state_pair_counts
+
+
+def count_hsp_state_transitions(args, logger):
+    """
+    :param args:
+    :param logger:
+    :return:
+    """
+    assert args.scoring, 'You need to provide scoring name via "--scoring" parameter'
+    md_comp, md_chrom, scoring_matrix, state_info = None, None, None, None
+    with pd.HDFStore(args.supportfile, 'r') as hdf:
+        try:
+            md_comp = hdf[PATH_MD_COMPARISON]
+        except KeyError as ke:
+            logger.error('No metadata on comparisons -'
+                         ' this seems not to be a run output file: {}'.format(args.supportfile))
+            raise ke
+    with pd.HDFStore(args.datafile, 'r') as hdf:
+        try:
+            md_chrom = hdf[PATH_MD_CHROM]
+        except KeyError as ke:
+            logger.error('No metadata on chromosomes -'
+                         ' this seems not to be a SCIDDO dataset file: {}'.format(args.datafile))
+            raise ke
+        scoring_path = os.path.join(ROOT_SCORE, args.scoring, 'matrix')
+        try:
+            scoring_matrix = hdf[scoring_path]
+        except KeyError as ke:
+            logger.error('No scoring matrix found in dataset under path {} -'
+                         ' this SCIDDO dataset is not compatible with the supplied'
+                         ' SCIDDO run data file (support-file)'.format(scoring_path))
+            raise ke
+        state_info = hdf[PATH_MD_STATE]
+
+    job_params = []
+    for row in md_comp.itertuples():
+        for chrom in md_chrom.index:
+            job_params.append((args.datafile, args.supportfile, args.scoring,
+                               row.sample1, row.sample2, chrom, args.threshold))
+    logger.debug('Created argument list of size {} to process'.format(len(job_params)))
+
+    combined_counts = col.Counter()
+    with mp.Pool(args.workers) as pool:
+        resit = pool.imap_unordered(count_state_transitions_per_comparison, job_params)
+        for s1, s2, c, counts in resit:
+            logger.debug('Received state transition counts for {} - {} - {}'.format(s1, s2, c))
+            combined_counts.update(counts)
+
+    # load scoring matrix as template for output
+    scoring_matrix.loc[:] = 0
+    trans_count_matrix = scoring_matrix.astype(np.int32)
+    for (state1, state2), count in combined_counts.items():
+        trans_count_matrix.loc[state1, state2] = count
+
+    if args.addstatelabels:
+        trans_count_matrix.index = state_info['description']
+        trans_count_matrix.columns = state_info['description'].tolist()
+
+    os.makedirs(os.path.abspath(os.path.dirname(args.output)), exist_ok=True)
+    trans_count_matrix.to_csv(args.output, sep='\t', header=True,
+                              index=True, index_label='state_transitions')
+
+    return
 
 
 def dump_segments(args, store_path, logger):
@@ -828,6 +919,15 @@ def _run_cmd_dump(args, logger):
             setattr(args, 'scoring', scoring)
         logger.debug('Dumping HSPs filtered by chromatin dynamics')
         filter_by_chromatin_dynamics(args, logger)
+    elif args.datatype == 'transitions':
+        if args.scoring == 'auto':
+            # supportfile is a run file
+            scoring = extract_auto_scoring(args.supportfile, logger,
+                                           filter_path=None,
+                                           load_path=PATH_MD_COMP_PARAMS)
+            setattr(args, 'scoring', scoring)
+        logger.debug('Dumping state transitions in HSP regions')
+        count_hsp_state_transitions(args, logger)
     else:
         pass
     logger.debug('All data dumped - exiting...')
