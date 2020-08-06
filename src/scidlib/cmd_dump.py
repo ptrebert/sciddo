@@ -789,10 +789,12 @@ def dump_metadata(args, logger):
     logger.debug('Start dumping metadata...')
     with pd.HDFStore(args.datafile, 'r') as hdf:
         if 'all' in args.metadata:
-            load_keys = [k for k in hdf.keys() if k.startswith('/metadata')]
+            load_keys = [k for k in hdf.keys() if k.startswith('/metadata') or k.startswith(ROOT_SCORE)]
         else:
             norm = [k if k.startswith('/') else '/' + k for k in args.metadata]
             load_keys = [k for k in norm if k in hdf.keys()]
+        if not load_keys:
+            raise ValueError('Normalizing metadata key(s) failed or key(s) not contained in dataset: {}'.format(args.metadata))
         for k in load_keys:
             table = hdf[k]
             derived_name = k.strip('/').replace('metadata', 'md').replace('/', '_') + '.tsv'
@@ -870,14 +872,34 @@ def _run_cmd_dump(args, logger):
     :return:
     """
     if args.datatype == 'metadata':
-        dump_scoring = (ROOT_SCORE.strip('/') in args.metadata or ROOT_SCORE in args.metadata)
-        if args.scoring == 'auto' and dump_scoring:
-            scoring = extract_auto_scoring(args.datafile, logger,
-                                           filter_path=ROOT_SCORE,
-                                           load_path=None)
-            adapted_paths = args.metadata + [os.path.join(ROOT_SCORE, scoring, 'matrix'),
-                                             os.path.join(ROOT_SCORE, scoring, 'parameters')]
+        dump_scoring = any([x.startswith(ROOT_SCORE.strip('/')) for x in args.metadata])
+        dump_scoring |= any([x.startswith(ROOT_SCORE) for x in args.metadata])
+        if dump_scoring:
+            if args.scoring == 'auto':
+                scoring = extract_auto_scoring(
+                    args.datafile,
+                    logger,
+                    filter_path=ROOT_SCORE,
+                    load_path=None
+                    )
+            else:
+                scoring = args.scoring
+            adapted_paths = []
+            for md_path in args.metadata:
+                if md_path.startswith(ROOT_SCORE.strip('/')) or md_path.startswith(ROOT_SCORE):
+                    if scoring in md_path:
+                        if not (md_path.endswith('matrix') or md_path.endswith('parameters')):
+                            adapted_paths.append(os.path.join(ROOT_SCORE, scoring, 'matrix'))
+                            adapted_paths.append(os.path.join(ROOT_SCORE, scoring, 'parameters'))
+                        else:
+                            adapted_paths.append(md_path)
+                    else:
+                        adapted_paths.append(os.path.join(ROOT_SCORE, scoring, 'matrix'))
+                        adapted_paths.append(os.path.join(ROOT_SCORE, scoring, 'parameters'))
+                else:
+                    adapted_paths.append(md_path)
             setattr(args, 'metadata', adapted_paths)
+
         logger.debug('Dumping metadata')
         dump_metadata(args, logger)
     elif args.datatype == 'states':
