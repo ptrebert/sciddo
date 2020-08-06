@@ -37,7 +37,7 @@ def add_stats_cmd_parser(subparsers):
                           ' - state transitions between replicate pairs'
                           ' - state transitions between non-replicate pairs (singletons)'
                           ' All statistics are stored under the root path {}'
-                          ' in the SolidState dataset. Default: FALSE'.format(ROOT_STAT))
+                          ' in the SCIDDO dataset. Default: FALSE'.format(ROOT_STAT))
 
     grp.add_argument('--agreement', '-a', action='store_true', default=False, dest='agree',
                      help='Compute state agreement score between all samples in the'
