@@ -791,9 +791,7 @@ def dump_metadata(args, logger):
         if 'all' in args.metadata:
             load_keys = [k for k in hdf.keys() if k.startswith('/metadata')]
         else:
-            print(args.metadata)
             norm = [k if k.startswith('/') else '/' + k for k in args.metadata]
-            print(norm)
             load_keys = [k for k in norm if k in hdf.keys()]
         for k in load_keys:
             table = hdf[k]
