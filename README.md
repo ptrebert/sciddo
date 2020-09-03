@@ -53,9 +53,31 @@ run the SCIDDO setup as appropriate for your environment:
 
 ## Execution
 
+### Input and output data formats
+SCIDDO supports common text-based input and output data formats. Chromatin state segmentations as tabular (BED-like) files
+should be compatible as long as they have a fixed bin width of at least 100 bp. Output files from ChromHMM or EpiCSeg
+are supported out-of-the-box, and SCIDDO is designed to be used immediately downstream of these tools (e.g., SCIDDO knows
+that ChromHMM segmentation files have the suffix "_segments.bed" and will strip that from file names before determining
+possible sample labels). Auxiliary files such as chromatin state label or color mappings are supoprted in form of simple
+tab-separated "key-value" text files.
+
+SCIDDO's internal data managements is realized with the popular [pandas Python package](https://pandas.pydata.org/), and
+data are stored in HDF5 files (*.h5) that are created with pandas. The main reason for using
+HDF5 files for storing data and metadata is efficiency, but all contents of a HDF5 file can be dumped to text.
+After the first step in a SCIDDO analysis of converting the input data to HDF5, all subsequent operations will be performed
+on this HDF5 file.
+
+When dumping identified differential chromatin domains (DCDs) or raw candidate regions to text, the output adheres to the
+BED column layout (with header) `chromosome, start, end, name, score`, plus additional columns containing statistics and sample/group names.
+If downstream tools cannot work with non-standard BED-like text files, a simple
+`cut -f 1,2,3,4,5 <SCIDDO_TABLE>.tsv > <SCIDDO_TABLE>.bed` can be used to restrict the output to the first five,
+BED-compliant columns.
+
 ### Getting help
 
 `sciddo.py --help` or `sciddo.py <SUBCOMMAND> --help` is your friend.
+
+For a step-by-step help on how to use SCIDDO, please refer to the [tutorial hosted as part of this repositry](testdata/tutorial.md).
 
 ### Standard analysis run
 
