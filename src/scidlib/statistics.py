@@ -287,7 +287,13 @@ def compute_expect(score, m, n, ka_k=None, ka_lambda=None, is_nat=True):
     else:
         # for single score value
         if is_nat:
-            res = np.exp(-1 * score) * L
+            try:
+                res = np.exp(-1 * score) * L
+            except FloatingPointError as fpe:
+                # numerical underflow happens 3x for test data set because
+                # raw / unmerged segments are used; catch that here
+                res = np.exp(-1 * min(700, score)) * L
+                #raise FloatingPointError('FPE - {}: score {} / L {}'.format(str(fpe), score, L))
         else:
             res = ka_k * L * np.exp(-1 * ka_lambda * score)
     return res

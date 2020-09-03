@@ -37,9 +37,21 @@ def add_dump_cmd_parser(subparsers):
                           ' or (iii) stdout.')
 
     grp = parser_dump.add_argument_group('General parameters')
-    grp.add_argument('--data-type', '-type', type=str, required=True, dest='datatype',
-                     choices=['metadata', 'states', 'segments', 'raw',
-                              'scores', 'dynamics', 'transitions'])
+    grp.add_argument(
+        '--data-type', '-type', type=str, required=True, dest='datatype',
+        choices=[
+            'metadata',
+            'states',
+            'segments',
+            'raw',
+            'scores',
+            'dynamics',
+            'transitions',
+            'info'
+            ],
+        help='Specify which data type to dump to text. The special value "info"'
+             ' will simply print a list of keys containted in the input file.'
+    )
     grp.add_argument('--scoring', '-sc', type=str, default='auto', dest='scoring',
                      help='Specify scoring name. Necessary for data types'
                           ' "segments", "scores", "dynamics" and "transitions".'
@@ -135,6 +147,10 @@ def add_dump_cmd_parser(subparsers):
                           ' the genomic coordinates of the state transitions. This can be helpful'
                           ' in case of long segments that span multiple smaller regions where the'
                           ' specified state transitions are observed. Default: False')
+    grp.add_argument('--keep-duplicates', '-dup', action='store_true', default=False, dest='keepdups',
+                    help='If set, report all regions on the level of individual sample-level comparisons,'
+                         ' which will most likely result in duplicate regions in the output (e.g., from'
+                         ' comparisons A-B and A-C). By default, report only a single region per sample group')
 
     grp = parser_dump.add_argument_group('Dump transition count matrix')
     grp.add_argument('--add-state-labels', '-lab', action='store_true', default=False, dest='addstatelabels',
@@ -212,11 +228,11 @@ def extract_overlapping_regions(from_idx, to_idx, hsp_cov, hsp_lut, segments, sp
         seg = segments.loc[seg_idx, :].copy()
         if split:
             start = int(bp_coords[idx_window.start])
-            end = int(bp_coords[idx_window.stop - 1])
+            # fix off by one here; numpy slicing
+            # is directly compatible with BED half-open
+            # intervals
+            end = int(bp_coords[idx_window.stop])
             seg.loc['start_bp'] = start
-            # this should be correct since the
-            # coordinates stored were Pandas default
-            # right inclusive
             seg.loc['end_bp'] = end
             seg['fragment'] = 1
             filtered.append(seg)
@@ -228,6 +244,8 @@ def extract_overlapping_regions(from_idx, to_idx, hsp_cov, hsp_lut, segments, sp
         df.drop_duplicates(['chrom', 'start_bp', 'end_bp', 'sample1', 'sample2'], inplace=True)
     elif 'group1' in df:
         df.drop_duplicates(['chrom', 'start_bp', 'end_bp', 'group1', 'group2'], inplace=True)
+    elif df.empty:
+        raise ValueError('Empty DataFrame created by chromatin dynamics filter: {} transitions in data set'.format(transition.sum()))
     else:
         raise ValueError('Unexpected structure of segment dataframe: {}'.format(df.columns))
     return df
@@ -321,12 +339,21 @@ def filter_by_chromatin_dynamics(args, logger):
             logger.debug('Received {} filtered regions for chromosome {}'.format(obj.shape[0], chrom))
             switches.append(obj)
     switches = pd.concat(switches, axis=0, ignore_index=False)
+    if not args.keepdups:
+        if 'group1' in switches:
+            switches.drop_duplicates(['#chrom', 'chromStart', 'chromEnd', 'group1', 'group2'], inplace=True)
+        elif 'sample1' in switches:
+            # if that was not result of a group comparison, sample-level dups were
+            # already dropped during "extract_overlapping_regions"
+            switches.drop_duplicates(['#chrom', 'chromStart', 'chromEnd', 'group1', 'group2'], inplace=True)
+        else:
+            raise ValueError('Unexpected structure of dataframe: {}'.format(switches.columns))
     col_order = sort_columns_bed_order(switches.columns)
     switches = switches[col_order]
     switches.sort_values(by=['#chrom', 'chromStart', 'chromEnd'], axis=0, inplace=True)
     if args.limitbed:
         bed_columns = BED_LIMIT.split()
-        if 'sample1' in switches:
+        if 'sample1' in switches and args.keepdups:
             bed_columns = bed_columns + ['sample1', 'sample2']
         else:
             bed_columns = bed_columns + ['group1', 'group2']
@@ -931,6 +958,8 @@ def _run_cmd_dump(args, logger):
             raise ValueError('Unexpected data type: {}'.format(args.datatype))
         dump_segments(args, path_prefix, logger)
     elif args.datatype == 'dynamics':
+        if not args.fromstates or not args.tostates:
+            raise ValueError('Filtering by chromatin dynamics requires specifying from/to state numbers')
         if args.scoring == 'auto':
             # supportfile is a run file
             scoring = extract_auto_scoring(args.supportfile, logger,
@@ -948,6 +977,10 @@ def _run_cmd_dump(args, logger):
             setattr(args, 'scoring', scoring)
         logger.debug('Dumping state transitions in HSP regions')
         count_hsp_state_transitions(args, logger)
+    elif args.datatype == 'info':
+        with pd.HDFStore(args.datafile, 'r') as hdf:
+            for k in sorted(hdf.keys()):
+                print(k)
     else:
         pass
     logger.debug('All data dumped - exiting...')

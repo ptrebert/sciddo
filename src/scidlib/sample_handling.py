@@ -26,6 +26,9 @@ def determine_sample_labels(filepaths, label_arg, logger):
         for fp in filepaths:
             fn = os.path.basename(fp)
             label = fn.rsplit('.', 1)[0]
+            # handle ChromHMM special case
+            if label.endswith('_segments'):
+                label = label.rsplit('_', 1)[0]
             sample_labels[fn] = label
     elif len(label_arg) == 1 and os.path.isfile(label_arg[0]):
         logger.debug('Detected file as label argument, assuming tabular file to label mapping inside...')

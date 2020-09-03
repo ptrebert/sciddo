@@ -227,8 +227,10 @@ def read_scoring_scheme(args, logger, score_name, score_file):
     table.index.name = 'state'
     row_states = set(table.index)
     col_states = set(table.columns)
-    assert (table == table.transpose()).all(axis=1).all(), \
-        'Read score matrix {} is not symmetric'.format(score_name)
+    if not (table == table.transpose()).all(axis=1).all():
+        logger.error('Provided score matrix is not symmetric - see non-"NaN" entries')
+        logger.error('\n\n{}\n\n'.format(table[table != table.transpose()]))
+        raise ValueError('Score matrix is not symmetric')
     all_match = row_states - col_states
     assert not all_match,\
         'Row and column state numbers disagree for scoring {}: {}'.format(score_name, all_match)
