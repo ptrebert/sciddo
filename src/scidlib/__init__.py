@@ -2,8 +2,8 @@
 
 # package info
 __author__ = 'Peter Ebert'
-__email__ = 'pebert@mpi-inf.mpg.de'
-__version__ = '0.8.0'
+__email__ = 'peter.ebert@iscb.org'
+__version__ = '0.9.0'
 
 # some formatting config
 LOG_FORMAT = '%(asctime)s - %(levelname)s: %(message)s'
