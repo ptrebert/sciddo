@@ -77,7 +77,6 @@ sciddo.py \
     --model-emissions testdata/model/model_18_core_K27ac.txt \  # ChromHMM model file
     --seg-format ChromHMM \  # tells SCIDDO to expect ChromHMM output files (segmentations, emissions etc.)
     --emission-format model \  # the file specified via "model-emissions" is *the* ChromHMM model file
-    --sample-labels E014_HUES48 E016_HUES64 E115_DND41 E124_CD14M \  # labels must match design matrix
     --chrom-filter "chr10"  # IMPORTANT NOTE - see below
     --output testdata.h5
 ```
