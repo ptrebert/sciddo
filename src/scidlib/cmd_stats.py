@@ -186,7 +186,7 @@ def generate_all_sample_pairs(data_keys):
     :return:
     """
     state_keys = [k for k in data_keys if k.startswith('/state')]
-    samples = [k.split('/')[2] for k in state_keys]
+    samples = sorted(set([k.split('/')[2] for k in state_keys]))
     sample_pairs = list(itt.combinations(samples, 2))
     return sorted(sample_pairs)
 
