@@ -245,6 +245,10 @@ def find_state_hsp(params):
             ka_params['eff_grp2_len'] = eff_grp2
             ka_params['seq_base_len'] = diff_bins
 
+    # no HSP identified
+    if segments.empty or segments is None:
+        return chrom, None, scoring_name
+
     # if there was a raw score <= 0, this should point
     # to something being wrong in the Ruzzo & Tompa implementation
     assert segments['raw_score'].min() > 0, 'Minimal raw HSP score is <= 0'
@@ -817,7 +821,7 @@ def prepare_scan_params(args, pairs, group1, group2, baselengths, logger):
     :return:
     """
     if args.grouplength == 'adaptive':
-        logger.debug('Computing adaptive group lengths...')
+        logger.debug('Computing adaptive group lengths for groups: {} vs. {}'.format(group1, group2))
         grouplengths = collect_adaptive_group_size(args, baselengths, group1, group2)
         logger.debug('Done')
     else:
@@ -909,6 +913,9 @@ def _run_cmd_scan(args, logger):
             for chrom, segments, scoring in resit:
                 i += 1
                 logger.debug('Received results for chromosome {} ({}/{})'.format(chrom, i, total))
+                if segments is None:
+                    logger.debug('No high scoring segments identified')
+                    continue
                 scan_results[scoring][chrom].append(segments)
 
     logger.debug('Scanning finished, storing results...')
