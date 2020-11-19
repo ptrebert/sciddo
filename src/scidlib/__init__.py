@@ -3,7 +3,7 @@
 # package info
 __author__ = 'Peter Ebert'
 __email__ = 'peter.ebert@iscb.org'
-__version__ = '0.9.0'
+__version__ = '1.0.0'
 
 # some formatting config
 LOG_FORMAT = '%(asctime)s - %(levelname)s: %(message)s'
