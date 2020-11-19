@@ -20,21 +20,33 @@ def determine_sample_labels(filepaths, label_arg, logger):
     design_matrix = None
     python_var_re = re.compile(r"^[A-Za-z_][A-Za-z0-9_]+")
     if not label_arg:
+        logger.debug('No label argument given, stripping file extension and assigning file name as label')
         # empty label argument implies: strip extension and be done
         sample_labels = dict()
         for fp in filepaths:
             fn = os.path.basename(fp)
             label = fn.rsplit('.', 1)[0]
+            # handle ChromHMM special case
+            if label.endswith('_segments'):
+                label = label.rsplit('_', 1)[0]
             sample_labels[fn] = label
     elif len(label_arg) == 1 and os.path.isfile(label_arg[0]):
+        logger.debug('Detected file as label argument, assuming tabular file to label mapping inside...')
         sample_labels = read_key_value_map(label_arg)
     elif len(label_arg) > 1 and label_arg[0] != 'REGEXP':
+        logger.debug('Assume sample labels given as list of strings in the SAME order as input files...')
         # labels are given as list of strings
         sample_labels = dict([(os.path.basename(fp), lab) for fp, lab in zip(filepaths, label_arg)])
     elif len(label_arg) == 2 and label_arg[0] == 'REGEXP':
+        logger.debug('Performing regular expression-based derivation of sample labels')
         # derive labels using regular expression matching
         # on full file paths
-        re_str = label_arg[1]
+        if os.path.isfile(label_arg[1]):
+            logger.debug('File path detected, reading regular expression from file {}'.format(label_arg[1]))
+            with open(label_arg[1], 'r') as re_file:
+                re_str = re_file.read().strip()
+        else:
+            re_str = label_arg[1]
         assert '<LABEL>' in re_str, 'Named group LABEL is required for regular expression labeling'
         re_obj = re.compile(re_str)
         group_values = col.defaultdict(set)

@@ -326,11 +326,14 @@ def _run_cmd_convert(args, logger):
     :return:
     """
     chromosomes = read_chrom_sizes(args.chromsizes, args.chromfilter)
+    logger.debug('Read chromosomes: {}'.format(chromosomes))
     if os.path.isdir(args.stateseg[0]):
+        logger.debug('Input detected as directory, collecting files...')
         state_files = collect_files(args.stateseg[0], args.collectinput,
                                     _standard_file_patterns(args.segformat)[0])
     else:
         state_files = args.stateseg
+    logger.debug('Detected {} state segmentation files as input'.format(len(state_files)))
     labeled_samples, design_matrix = determine_sample_labels(state_files, args.samplelabels, logger)
     if args.designmatrix and os.path.isfile(args.designmatrix):
         logger.debug('Reading design matrix from file {}'.format(args.designmatrix))

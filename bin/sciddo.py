@@ -51,7 +51,14 @@ def parse_command_line():
 
     parser = add_sub_parsers(parser)
 
-    return parser.parse_args()
+    cargs = parser.parse_args()
+    if not hasattr(cargs, 'execute'):
+        # assume SCIDDO called w/o any arguments
+        sys.stdout.write('\n')
+        parser.print_help()
+        sys.stdout.write('\n\n')
+        sys.exit(0)
+    return cargs
 
 
 def get_env_copy():

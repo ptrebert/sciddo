@@ -37,7 +37,7 @@ def add_stats_cmd_parser(subparsers):
                           ' - state transitions between replicate pairs'
                           ' - state transitions between non-replicate pairs (singletons)'
                           ' All statistics are stored under the root path {}'
-                          ' in the SolidState dataset. Default: FALSE'.format(ROOT_STAT))
+                          ' in the SCIDDO dataset. Default: FALSE'.format(ROOT_STAT))
 
     grp.add_argument('--agreement', '-a', action='store_true', default=False, dest='agree',
                      help='Compute state agreement score between all samples in the'
@@ -186,7 +186,7 @@ def generate_all_sample_pairs(data_keys):
     :return:
     """
     state_keys = [k for k in data_keys if k.startswith('/state')]
-    samples = [k.split('/')[2] for k in state_keys]
+    samples = sorted(set([k.split('/')[2] for k in state_keys]))
     sample_pairs = list(itt.combinations(samples, 2))
     return sorted(sample_pairs)
 
@@ -234,6 +234,9 @@ def compute_pair_state_transitions(args, logger):
                     pass
             sample_pairs = get_pairs(md_design)
             comp = os.path.split(path)[-1]
+            if len(sample_pairs) == 0:
+                logger.warning('Identified 0 sample pairs for comparison {} - is that correct? Skipping to next...'.format(comp))
+                continue
             logger.debug('Identified {} sample pairs for comparison: {}'.format(len(sample_pairs), comp))
             # append individual chromosomes and path to data file
             # to create final list of parameters

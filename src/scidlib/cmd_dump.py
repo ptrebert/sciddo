@@ -37,14 +37,27 @@ def add_dump_cmd_parser(subparsers):
                           ' or (iii) stdout.')
 
     grp = parser_dump.add_argument_group('General parameters')
-    grp.add_argument('--data-type', '-type', type=str, required=True, dest='datatype',
-                     choices=['metadata', 'states', 'segments', 'raw', 'scores', 'dynamics'])
+    grp.add_argument(
+        '--data-type', '-type', type=str, required=True, dest='datatype',
+        choices=[
+            'metadata',
+            'states',
+            'segments',
+            'raw',
+            'scores',
+            'dynamics',
+            'transitions',
+            'info'
+            ],
+        help='Specify which data type to dump to text. The special value "info"'
+             ' will simply print a list of keys containted in the input file.'
+    )
     grp.add_argument('--scoring', '-sc', type=str, default='auto', dest='scoring',
                      help='Specify scoring name. Necessary for data types'
-                          ' "segments", "scores" and "dynamics". The default value'
-                          ' "auto" can be used if - and only if - there is exactly'
-                          ' one scoring included in the dataset, which can be selected'
-                          ' automatically.'
+                          ' "segments", "scores", "dynamics" and "transitions".'
+                          ' The default value "auto" can be used if - and only if -'
+                          ' there is exactly one scoring included in the dataset,'
+                          ' which can be selected automatically.'
                           ' DEFAULT: auto')
     grp.add_argument('--threshold', '-t', type=float, default=1., dest='threshold',
                      help='Specify upper threshold on Expect value of high scoring segments.'
@@ -134,16 +147,16 @@ def add_dump_cmd_parser(subparsers):
                           ' the genomic coordinates of the state transitions. This can be helpful'
                           ' in case of long segments that span multiple smaller regions where the'
                           ' specified state transitions are observed. Default: False')
-    #
-    # grp = parser_dump.add_argument_group('Dump transition count matrix')
-    # grp.add_argument('--hsp-transitions', '-hspt', action='store_true', default=False, dest='hsptransitions',
-    #                  help='Dump a text file containing a count matrix that lists all state transitions'
-    #                       ' observed in the HSPs. This requires a dataset, an HSP file and the respective'
-    #                       ' data paths to be set. Default: False')
-    # grp.add_argument('--add-state-labels', '-lab', action='store_true', default=False, dest='addstatelabels',
-    #                  help='Add state labels to the output matrix (rows and columns). Please note'
-    #                       ' that this requires the respective annotation to be part of the dataset'
-    #                       ' (usually added during the "convert" command). Default: False')
+    grp.add_argument('--keep-duplicates', '-dup', action='store_true', default=False, dest='keepdups',
+                    help='If set, report all regions on the level of individual sample-level comparisons,'
+                         ' which will most likely result in duplicate regions in the output (e.g., from'
+                         ' comparisons A-B and A-C). By default, report only a single region per sample group')
+
+    grp = parser_dump.add_argument_group('Dump transition count matrix')
+    grp.add_argument('--add-state-labels', '-lab', action='store_true', default=False, dest='addstatelabels',
+                     help='Add state labels to the output matrix (rows and columns). Please note'
+                          ' that this requires the respective annotation to be part of the dataset'
+                          ' (usually added during the "convert" command). Default: False')
 
     parser_dump.set_defaults(execute=_run_cmd_dump)
     return subparsers
@@ -215,11 +228,11 @@ def extract_overlapping_regions(from_idx, to_idx, hsp_cov, hsp_lut, segments, sp
         seg = segments.loc[seg_idx, :].copy()
         if split:
             start = int(bp_coords[idx_window.start])
-            end = int(bp_coords[idx_window.stop - 1])
+            # fix off by one here; numpy slicing
+            # is directly compatible with BED half-open
+            # intervals
+            end = int(bp_coords[idx_window.stop])
             seg.loc['start_bp'] = start
-            # this should be correct since the
-            # coordinates stored were Pandas default
-            # right inclusive
             seg.loc['end_bp'] = end
             seg['fragment'] = 1
             filtered.append(seg)
@@ -231,6 +244,8 @@ def extract_overlapping_regions(from_idx, to_idx, hsp_cov, hsp_lut, segments, sp
         df.drop_duplicates(['chrom', 'start_bp', 'end_bp', 'sample1', 'sample2'], inplace=True)
     elif 'group1' in df:
         df.drop_duplicates(['chrom', 'start_bp', 'end_bp', 'group1', 'group2'], inplace=True)
+    elif df.empty:
+        raise ValueError('Empty DataFrame created by chromatin dynamics filter: {} transitions in data set'.format(transition.sum()))
     else:
         raise ValueError('Unexpected structure of segment dataframe: {}'.format(df.columns))
     return df
@@ -324,12 +339,21 @@ def filter_by_chromatin_dynamics(args, logger):
             logger.debug('Received {} filtered regions for chromosome {}'.format(obj.shape[0], chrom))
             switches.append(obj)
     switches = pd.concat(switches, axis=0, ignore_index=False)
+    if not args.keepdups:
+        if 'group1' in switches:
+            switches.drop_duplicates(['#chrom', 'chromStart', 'chromEnd', 'group1', 'group2'], inplace=True)
+        elif 'sample1' in switches:
+            # if that was not result of a group comparison, sample-level dups were
+            # already dropped during "extract_overlapping_regions"
+            switches.drop_duplicates(['#chrom', 'chromStart', 'chromEnd', 'group1', 'group2'], inplace=True)
+        else:
+            raise ValueError('Unexpected structure of dataframe: {}'.format(switches.columns))
     col_order = sort_columns_bed_order(switches.columns)
     switches = switches[col_order]
     switches.sort_values(by=['#chrom', 'chromStart', 'chromEnd'], axis=0, inplace=True)
     if args.limitbed:
         bed_columns = BED_LIMIT.split()
-        if 'sample1' in switches:
+        if 'sample1' in switches and args.keepdups:
             bed_columns = bed_columns + ['sample1', 'sample2']
         else:
             bed_columns = bed_columns + ['group1', 'group2']
@@ -337,6 +361,100 @@ def filter_by_chromatin_dynamics(args, logger):
     dump_bed_data(switches, args.output, 'w', header=True)
 
     return 0
+
+
+def count_state_transitions_per_comparison(params):
+    """
+    :param params:
+    :return:
+    """
+    states1, states2, sample1, sample2, segments, binsize = load_filter_data(params)
+    chrom, threshold = params[5:]
+
+    original_length = states1.size
+
+    try:
+        hsp_cov_idx, _ = prepare_indices(states1, segments, threshold)
+    except ValueError:
+        # can be triggered if, for a given E-value thresholds,
+        # no DCDs were detected on the respective chromosome
+        return sample1, sample2, chrom + ' (NO DCDs!)', col.Counter()
+    hsp_cov_idx = np.array(hsp_cov_idx.values, dtype=np.bool)
+
+    states1 = states1.values[hsp_cov_idx]
+    states2 = states2.values[hsp_cov_idx]
+
+    subset_length = states1.size
+
+    assert subset_length < original_length, \
+        'Subsetting chromatin state vectors failed: {} vs {}'.format(original_length, subset_length)
+
+    state_pair_counts = col.Counter(zip(states1, states2))
+
+    return sample1, sample2, chrom, state_pair_counts
+
+
+def count_hsp_state_transitions(args, logger):
+    """
+    :param args:
+    :param logger:
+    :return:
+    """
+    assert args.scoring, 'You need to provide scoring name via "--scoring" parameter'
+    md_comp, md_chrom, scoring_matrix, state_info = None, None, None, None
+    with pd.HDFStore(args.supportfile, 'r') as hdf:
+        try:
+            md_comp = hdf[PATH_MD_COMPARISON]
+        except KeyError as ke:
+            logger.error('No metadata on comparisons -'
+                         ' this seems not to be a run output file: {}'.format(args.supportfile))
+            raise ke
+    with pd.HDFStore(args.datafile, 'r') as hdf:
+        try:
+            md_chrom = hdf[PATH_MD_CHROM]
+        except KeyError as ke:
+            logger.error('No metadata on chromosomes -'
+                         ' this seems not to be a SCIDDO dataset file: {}'.format(args.datafile))
+            raise ke
+        scoring_path = os.path.join(ROOT_SCORE, args.scoring, 'matrix')
+        try:
+            scoring_matrix = hdf[scoring_path]
+        except KeyError as ke:
+            logger.error('No scoring matrix found in dataset under path {} -'
+                         ' this SCIDDO dataset is not compatible with the supplied'
+                         ' SCIDDO run data file (support-file)'.format(scoring_path))
+            raise ke
+        state_info = hdf[PATH_MD_STATE]
+
+    job_params = []
+    for row in md_comp.itertuples():
+        for chrom in md_chrom.index:
+            job_params.append((args.datafile, args.supportfile, args.scoring,
+                               row.sample1, row.sample2, chrom, args.threshold))
+    logger.debug('Created argument list of size {} to process'.format(len(job_params)))
+
+    combined_counts = col.Counter()
+    with mp.Pool(args.workers) as pool:
+        resit = pool.imap_unordered(count_state_transitions_per_comparison, job_params)
+        for s1, s2, c, counts in resit:
+            logger.debug('Received state transition counts for {} - {} - {}'.format(s1, s2, c))
+            combined_counts.update(counts)
+
+    # load scoring matrix as template for output
+    scoring_matrix.loc[:] = 0
+    trans_count_matrix = scoring_matrix.astype(np.int32)
+    for (state1, state2), count in combined_counts.items():
+        trans_count_matrix.loc[state1, state2] = count
+
+    if args.addstatelabels:
+        trans_count_matrix.index = state_info['description']
+        trans_count_matrix.columns = state_info['description'].tolist()
+
+    os.makedirs(os.path.abspath(os.path.dirname(args.output)), exist_ok=True)
+    trans_count_matrix.to_csv(args.output, sep='\t', header=True,
+                              index=True, index_label='state_transitions')
+
+    return
 
 
 def dump_segments(args, store_path, logger):
@@ -698,12 +816,12 @@ def dump_metadata(args, logger):
     logger.debug('Start dumping metadata...')
     with pd.HDFStore(args.datafile, 'r') as hdf:
         if 'all' in args.metadata:
-            load_keys = [k for k in hdf.keys() if k.startswith('/metadata')]
+            load_keys = [k for k in hdf.keys() if k.startswith('/metadata') or k.startswith(ROOT_SCORE)]
         else:
-            print(args.metadata)
             norm = [k if k.startswith('/') else '/' + k for k in args.metadata]
-            print(norm)
             load_keys = [k for k in norm if k in hdf.keys()]
+        if not load_keys:
+            raise ValueError('Normalizing metadata key(s) failed or key(s) not contained in dataset: {}'.format(args.metadata))
         for k in load_keys:
             table = hdf[k]
             derived_name = k.strip('/').replace('metadata', 'md').replace('/', '_') + '.tsv'
@@ -781,14 +899,34 @@ def _run_cmd_dump(args, logger):
     :return:
     """
     if args.datatype == 'metadata':
-        dump_scoring = (ROOT_SCORE.strip('/') in args.metadata or ROOT_SCORE in args.metadata)
-        if args.scoring == 'auto' and dump_scoring:
-            scoring = extract_auto_scoring(args.datafile, logger,
-                                           filter_path=ROOT_SCORE,
-                                           load_path=None)
-            adapted_paths = args.metadata + [os.path.join(ROOT_SCORE, scoring, 'matrix'),
-                                             os.path.join(ROOT_SCORE, scoring, 'parameters')]
+        dump_scoring = any([x.startswith(ROOT_SCORE.strip('/')) for x in args.metadata])
+        dump_scoring |= any([x.startswith(ROOT_SCORE) for x in args.metadata])
+        if dump_scoring:
+            if args.scoring == 'auto':
+                scoring = extract_auto_scoring(
+                    args.datafile,
+                    logger,
+                    filter_path=ROOT_SCORE,
+                    load_path=None
+                    )
+            else:
+                scoring = args.scoring
+            adapted_paths = []
+            for md_path in args.metadata:
+                if md_path.startswith(ROOT_SCORE.strip('/')) or md_path.startswith(ROOT_SCORE):
+                    if scoring in md_path:
+                        if not (md_path.endswith('matrix') or md_path.endswith('parameters')):
+                            adapted_paths.append(os.path.join(ROOT_SCORE, scoring, 'matrix'))
+                            adapted_paths.append(os.path.join(ROOT_SCORE, scoring, 'parameters'))
+                        else:
+                            adapted_paths.append(md_path)
+                    else:
+                        adapted_paths.append(os.path.join(ROOT_SCORE, scoring, 'matrix'))
+                        adapted_paths.append(os.path.join(ROOT_SCORE, scoring, 'parameters'))
+                else:
+                    adapted_paths.append(md_path)
             setattr(args, 'metadata', adapted_paths)
+
         logger.debug('Dumping metadata')
         dump_metadata(args, logger)
     elif args.datatype == 'states':
@@ -820,6 +958,8 @@ def _run_cmd_dump(args, logger):
             raise ValueError('Unexpected data type: {}'.format(args.datatype))
         dump_segments(args, path_prefix, logger)
     elif args.datatype == 'dynamics':
+        if not args.fromstates or not args.tostates:
+            raise ValueError('Filtering by chromatin dynamics requires specifying from/to state numbers')
         if args.scoring == 'auto':
             # supportfile is a run file
             scoring = extract_auto_scoring(args.supportfile, logger,
@@ -828,6 +968,19 @@ def _run_cmd_dump(args, logger):
             setattr(args, 'scoring', scoring)
         logger.debug('Dumping HSPs filtered by chromatin dynamics')
         filter_by_chromatin_dynamics(args, logger)
+    elif args.datatype == 'transitions':
+        if args.scoring == 'auto':
+            # supportfile is a run file
+            scoring = extract_auto_scoring(args.supportfile, logger,
+                                           filter_path=None,
+                                           load_path=PATH_MD_COMP_PARAMS)
+            setattr(args, 'scoring', scoring)
+        logger.debug('Dumping state transitions in HSP regions')
+        count_hsp_state_transitions(args, logger)
+    elif args.datatype == 'info':
+        with pd.HDFStore(args.datafile, 'r') as hdf:
+            for k in sorted(hdf.keys()):
+                print(k)
     else:
         pass
     logger.debug('All data dumped - exiting...')
