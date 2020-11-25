@@ -1,9 +1,9 @@
 # SCIDDO: Score-based identification of differential chromatin domains
 
 ## Publication
-bioRxiv preprint: [DOI: 10.1101/441766 ](https://doi.org/10.1101/441766) 
+Manuscript: [DOI: 10.1093/bioinformatics/btaa960](https://doi.org/10.1093/bioinformatics/btaa960)
 
-Manuscript status: submitted
+bioRxiv preprint: [DOI: 10.1101/441766 ](https://doi.org/10.1101/441766) 
 
 ## Use cases
 SCIDDO is a tool for the differential analysis of histone chromatin data.
