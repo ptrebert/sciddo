@@ -106,7 +106,8 @@ def test_karlin_c_source():
 
     :return:
     """
-    with pytest.raises(RuntimeError, message='Accessing c-types wrapper interface should raise.'):
+    import re
+    with pytest.raises(RuntimeError, match=re.escape('karlin module can be imported.')):
         est_ka_params = init_karlin_altschul_estimation()
 
     return True
