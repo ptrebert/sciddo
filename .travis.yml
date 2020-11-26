@@ -27,14 +27,14 @@ install:
 script:
   - pytest
 
-
 env:
  global:
-   - INCLUDE_DIRS=$(PYTHON_INCLUDE):/usr/local/include:/usr/include/hdf5/serial
-   - LIBRARY_DIRS=$(PYTHON_LIB):/usr/local/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/hdf5/serial
+   - INCLUDE_DIRS=${PYTHON_INCLUDE}:/usr/local/include:/usr/include/hdf5/serial
+   - LIBRARY_DIRS=${PYTHON_LIB}:/usr/local/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/hdf5/serial
 
 jobs:
   allow_failures:
     - python: "3.2"
     - python: "3.3"
     - python: "3.4"
+    - python: "3.5"
