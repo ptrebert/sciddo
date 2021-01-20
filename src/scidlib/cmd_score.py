@@ -608,7 +608,11 @@ def set_background_state(args):
     else:
         with pd.HDFStore(args.dataset, 'r') as hdf:
             md_state = hdf[PATH_MD_STATE]
-            bgs = int(md_state.loc[md_state['background'] == 1, 'number'][0])
+            try:
+                bgs = int(md_state.loc[md_state['background'] == 1, 'number'][0])
+            except IndexError:
+                raise ValueError('Cannot retrieve background state - '
+                                'has it been set or determined?\n{}'.format(md_state))
             args.__setattr__('bgstate', bgs)
     return args
 
