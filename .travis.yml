@@ -22,19 +22,16 @@ before_install:
   - sudo apt-get install -y libhdf5-dev
 
 install:
-  - echo $HDF5_DIR
-  - echo $LIBRARY_DIRS
-  - echo `dpkg -L libhdf5-dev`
-  - python setup.py install
+  - python setup.py install --hdf5=/usr/lib/x86_64-linux-gnu/hdf5/serial/
 
 script:
   - pytest
 
 env:
  global:
-   - INCLUDE_DIRS=${PYTHON_INCLUDE}:/usr/local/include:/usr/include/hdf5/serial:/usr/include:/usr/lib/x86_64-linux-gnu/hdf5/serial/lib/include
-   - LIBRARY_DIRS=${PYTHON_LIB}:/usr/local/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/hdf5/serial:/usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu/hdf5/serial/lib/lib
-   - HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial:/usr/include/hdf5/serial:/usr/include:/usr/lib/x86_64-linux-gnu/hdf5/serial/lib/include:/usr/lib/x86_64-linux-gnu/hdf5/serial/lib/lib
+   - INCLUDE_DIRS=${PYTHON_INCLUDE}:/usr/local/include:/usr/include/hdf5/serial:/usr/include
+   - LIBRARY_DIRS=${PYTHON_LIB}:/usr/local/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/hdf5/serial
+   - HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial
 
 jobs:
   allow_failures:
