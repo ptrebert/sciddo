@@ -22,6 +22,9 @@ before_install:
   - sudo apt-get install -y libhdf5-dev
 
 install:
+  - echo $HDF5_DIR
+  - echo $LIBRARY_DIRS
+  - echo `dpkg -L libhdf5-dev`
   - python setup.py install
 
 script:
