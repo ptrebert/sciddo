@@ -29,9 +29,9 @@ script:
 
 env:
  global:
-   - INCLUDE_DIRS=${PYTHON_INCLUDE}:/usr/local/include:/usr/include/hdf5/serial:/usr/include
-   - LIBRARY_DIRS=${PYTHON_LIB}:/usr/local/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/hdf5/serial:/usr/lib/x86_64-linux-gnu
-   - HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial:/usr/lib/x86_64-linux-gnu:/usr/include/hdf5/serial:/usr/include
+   - INCLUDE_DIRS=${PYTHON_INCLUDE}:/usr/local/include:/usr/include/hdf5/serial:/usr/include:/usr/lib/x86_64-linux-gnu/hdf5/serial/lib/include
+   - LIBRARY_DIRS=${PYTHON_LIB}:/usr/local/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/hdf5/serial:/usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu/hdf5/serial/lib/lib
+   - HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial:/usr/include/hdf5/serial:/usr/include:/usr/lib/x86_64-linux-gnu/hdf5/serial/lib/include:/usr/lib/x86_64-linux-gnu/hdf5/serial/lib/lib
 
 jobs:
   allow_failures:
