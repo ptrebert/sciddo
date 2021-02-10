@@ -5,8 +5,6 @@ dist: xenial
 language: python
 
 python:
-  - "3.2"
-  - "3.3"
   - "3.4"
   - "3.5"
   - "3.6"
@@ -21,6 +19,7 @@ branches:
 before_install:
   - sudo apt-get update
   - sudo apt-get install -y "libhdf5-[[:digit:]]*"
+  - sudo apt-get install -y libhdf5-dev
 
 install:
   - python setup.py install
@@ -30,12 +29,11 @@ script:
 
 env:
  global:
-   - INCLUDE_DIRS=${PYTHON_INCLUDE}:/usr/local/include:/usr/include/hdf5/serial
-   - LIBRARY_DIRS=${PYTHON_LIB}:/usr/local/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/hdf5/serial
+   - INCLUDE_DIRS=${PYTHON_INCLUDE}:/usr/local/include:/usr/include/hdf5/serial:/usr/include
+   - LIBRARY_DIRS=${PYTHON_LIB}:/usr/local/lib:/usr/lib:/usr/lib/x86_64-linux-gnu/hdf5/serial:/usr/lib/x86_64-linux-gnu
+   - HDF5_DIR=/usr/lib/x86_64-linux-gnu/hdf5/serial:/usr/lib/x86_64-linux-gnu:/usr/include/hdf5/serial:/usr/include
 
 jobs:
   allow_failures:
-    - python: "3.2"
-    - python: "3.3"
     - python: "3.4"
     - python: "3.5"

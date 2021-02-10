@@ -4,12 +4,11 @@ channels:
   - conda-forge
 dependencies:
   - python=3.6.*
-  - numpy=1.13.*
-  - pandas=0.20.*
-  - scipy=0.19.*
-  - mpmath=0.19.*
-  - intervaltree=2.1.*
-  - pytables=3.4.*
+  - numpy=1.13.1
+  - pandas=0.20.3
+  - scipy=0.19.1
+  - mpmath=0.19
+  - intervaltree=2.1.0
+  - pytables=3.4.2
   - hdf5=1.8.*
   - pytest=3.2.*
-  - cython=0.29

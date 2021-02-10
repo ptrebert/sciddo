@@ -4,4 +4,3 @@ pandas==0.20.3
 mpmath==0.19
 tables==3.4.2
 intervaltree==2.1.0
-cython==0.29
